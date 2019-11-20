@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Kill all SITL binaries when exiting
+trap "killall -9 arducopter" SIGINT SIGTERM EXIT
+
 # assume we start the script from the root directory
 ROOTDIR=$PWD
 COPTER=$ROOTDIR/build/sitl/bin/arducopter
@@ -13,7 +16,7 @@ BASE_DEFAULTS="$ROOTDIR/Tools/autotest/default_params/copter.parm,$ROOTDIR/libra
 	./waf copter
 }
 
-# start up main rover in the current directory
+# start up main copter in the current directory
 $COPTER --model airsim-copter --uartA udpclient:$GCS_IP --uartC mcast: --defaults $BASE_DEFAULTS &
 
 # now start another copter to follow the first, using
