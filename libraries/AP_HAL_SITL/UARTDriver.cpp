@@ -487,8 +487,10 @@ void UARTDriver::_udp_start_multicast(const char *address, uint16_t port)
     struct ip_mreq mreq {};
     mreq.imr_multiaddr.s_addr = inet_addr(address);
     mreq.imr_interface.s_addr = htonl(INADDR_ANY);
-
-    ret = setsockopt(_mc_fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
+    
+    // Fix for Windows- Set IP_ADD_MEMBERSHIP to 12
+    // Source - https://github.com/rust-lang/rust/pull/21267
+    ret = setsockopt(_mc_fd, IPPROTO_IP, 12, &mreq, sizeof(mreq));
     if (ret == -1) {
         fprintf(stderr, "multicast membership add failed on port %u - %s\n",
                 (unsigned)ntohs(sockaddr.sin_port),
