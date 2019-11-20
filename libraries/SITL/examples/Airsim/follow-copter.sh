@@ -17,7 +17,7 @@ BASE_DEFAULTS="$ROOTDIR/Tools/autotest/default_params/copter.parm,$ROOTDIR/libra
 }
 
 # start up main copter in the current directory
-$COPTER --model airsim-copter --uartA udpclient:$GCS_IP --uartC mcast: --defaults $BASE_DEFAULTS &
+$COPTER --model airsim-copter --uartA udpclient:$GCS_IP --uartC mcast:127.0.0.1:14550 --defaults $BASE_DEFAULTS &
 
 # now start another copter to follow the first, using
 # a separate directory to keep the eeprom.bin and logs separate
@@ -39,7 +39,7 @@ FOLL_SYSID $FOLL_SYSID
 FOLL_DIST_MAX 1000
 EOF
     pushd copter$i
-    $COPTER --model airsim-copter --uartA tcp:0 --uartC mcast: --instance $i --defaults $BASE_DEFAULTS,follow.parm &
+    $COPTER --model airsim-copter --uartA tcp:0 --uartC mcast:127.0.0.1:14550 --instance $i --defaults $BASE_DEFAULTS,follow.parm &
     popd
 done
 wait
