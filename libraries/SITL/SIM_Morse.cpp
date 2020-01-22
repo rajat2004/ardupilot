@@ -105,14 +105,14 @@ Morse::Morse(const char *frame_str) :
     }
 
     if (strstr(frame_option, "-rover")) {
-        output_type = OUTPUT_ROVER;
+        output_type = OutputType::Rover;
     } else if (strstr(frame_option, "-quad")) {
-        output_type = OUTPUT_QUAD;
+        output_type = OutputType::Quad;
     } else if (strstr(frame_option, "-pwm")) {
-        output_type = OUTPUT_PWM;
+        output_type = OutputType::PWM;
     } else {
         // default to rover
-        output_type = OUTPUT_ROVER;
+        output_type = OutputType::Rover;
     }
 
     for (uint8_t i=0; i<ARRAY_SIZE(sim_defaults); i++) {
@@ -510,13 +510,13 @@ void Morse::update(const struct sitl_input &input)
     update_mag_field_bf();
 
     switch (output_type) {
-    case OUTPUT_ROVER:
+    case OutputType::Rover:
         output_rover(input);
         break;
-    case OUTPUT_QUAD:
+    case OutputType::Quad:
         output_quad(input);
         break;
-    case OUTPUT_PWM:
+    case OutputType::PWM:
         output_pwm(input);
         break;
     }

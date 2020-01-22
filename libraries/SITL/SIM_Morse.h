@@ -63,10 +63,10 @@ private:
     // assume we control vehicle on port 60001
     uint16_t morse_control_port = 60001;
 
-    enum {
-        OUTPUT_ROVER=1,
-        OUTPUT_QUAD=2,
-        OUTPUT_PWM=3
+    enum class OutputType {
+        Rover=1,
+        Quad=2,
+        PWM=3
     } output_type;
 
     bool connect_sockets(void);
