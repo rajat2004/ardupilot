@@ -12,7 +12,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-/* 
+/*
 	Simulator Connector for AirSim
 */
 
@@ -25,6 +25,8 @@
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Logger/AP_Logger.h>
 #include <AP_HAL/utility/replace.h>
+
+#define UDP_TIMEOUT_MS 100
 
 extern const AP_HAL::HAL& hal;
 
@@ -104,6 +106,22 @@ void AirSim::output_rover(const struct sitl_input &input)
         } else {
             printf("Sent %ld bytes instead of %lu bytes\n", (long)send_ret, (unsigned long)sizeof(pkt));
         }
+    }
+}
+
+/*
+    Wrapper function to send servo output
+*/
+void AirSim::output_servos(const struct sitl_input& input)
+{
+    switch (output_type) {
+        case OutputType::Copter:
+            output_copter(input);
+            break;
+
+        case OutputType::Rover:
+            output_rover(input);
+            break;
     }
 }
 
@@ -242,13 +260,23 @@ bool AirSim::parse_sensors(const char *json)
 	Receive new sensor data from simulator
 	This is a blocking function
 */
-void AirSim::recv_fdm()
+void AirSim::recv_fdm(const struct sitl_input& input)
 {
     // Receive sensor packet
-    ssize_t ret = sock.recv(&sensor_buffer[sensor_buffer_len], sizeof(sensor_buffer)-sensor_buffer_len, 100);
+    ssize_t ret = sock.recv(&sensor_buffer[sensor_buffer_len], sizeof(sensor_buffer)-sensor_buffer_len, UDP_TIMEOUT_MS);
+    uint32_t wait_ms = UDP_TIMEOUT_MS;
     while (ret <= 0) {
-        printf("No sensor message received - %s\n", strerror(errno));
-        ret = sock.recv(&sensor_buffer[sensor_buffer_len], sizeof(sensor_buffer)-sensor_buffer_len, 100);
+        // printf("No sensor message received - %s\n", strerror(errno));
+        ret = sock.recv(&sensor_buffer[sensor_buffer_len], sizeof(sensor_buffer)-sensor_buffer_len, UDP_TIMEOUT_MS);
+        wait_ms += UDP_TIMEOUT_MS;
+
+        // If no sensor message is received after 1 second, resend servos
+        // this helps cope with SITL and the physics getting out of sync
+        if (wait_ms > 1000) {
+            wait_ms = 0;
+            printf("No sensor message received in last 1s, error - %s, resending servos\n", strerror(errno));
+            output_servos(input);
+        }
     }
 
     // convert '\n' into nul
@@ -271,17 +299,9 @@ void AirSim::recv_fdm()
     memmove(sensor_buffer, p2, sensor_buffer_len - (p2 - sensor_buffer));
     sensor_buffer_len = sensor_buffer_len - (p2 - sensor_buffer);
 
-    accel_body = Vector3f(state.imu.linear_acceleration[0],
-                          state.imu.linear_acceleration[1],
-                          state.imu.linear_acceleration[2]);
-
-    gyro = Vector3f(state.imu.angular_velocity[0],
-                    state.imu.angular_velocity[1],
-                    state.imu.angular_velocity[2]);
-
-    velocity_ef = Vector3f(state.velocity.world_linear_velocity[0],
-                           state.velocity.world_linear_velocity[1],
-                           state.velocity.world_linear_velocity[2]);
+    accel_body = state.imu.linear_acceleration;
+    gyro = state.imu.angular_velocity;
+    velocity_ef = state.velocity.world_linear_velocity;
 
     location.lat = state.gps.lat * 1.0e7;
     location.lng = state.gps.lon * 1.0e7;
@@ -371,17 +391,11 @@ void AirSim::recv_fdm()
 */
 void AirSim::update(const struct sitl_input &input)
 {
-    switch (output_type) {
-        case OutputType::Copter:
-            output_copter(input);
-            break;
+    // Send servos to AirSim
+    output_servos(input);
 
-        case OutputType::Rover:
-            output_rover(input);
-            break;
-    }
-
-    recv_fdm();
+    // Receive sensor data
+    recv_fdm(input);
 
     // update magnetic field
     update_mag_field_bf();

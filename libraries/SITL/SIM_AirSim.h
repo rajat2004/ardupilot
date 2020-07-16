@@ -12,7 +12,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-/* 
+/*
 	Simulator connector for Airsim: https://github.com/Microsoft/AirSim
 */
 
@@ -23,7 +23,7 @@
 
 namespace SITL {
 
-/* 
+/*
 	Airsim Simulator
 */
 
@@ -79,7 +79,10 @@ private:
 
     void output_copter(const struct sitl_input &input);
     void output_rover(const struct sitl_input &input);
-    void recv_fdm();
+    // Wrapper function over the above 2
+    void output_servos(const struct sitl_input& input);
+
+    void recv_fdm(const struct sitl_input& input);
     void report_FPS(void);
 
 	bool parse_sensors(const char *json);
