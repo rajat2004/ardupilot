@@ -124,6 +124,7 @@ private:
         struct {
             struct float_array rng_distances;
         } rng;
+        Vector3f position;
     } state;
 
     // table to aid parsing of JSON sensor data
@@ -132,7 +133,7 @@ private:
         const char *key;
         void *ptr;
         enum data_type type;
-    } keytable[13] = {
+    } keytable[14] = {
         { "", "timestamp", &state.timestamp, DATA_UINT64 },
         { "imu", "angular_velocity",    &state.imu.angular_velocity, DATA_VECTOR3F },
         { "imu", "linear_acceleration", &state.imu.linear_acceleration, DATA_VECTOR3F },
@@ -146,6 +147,7 @@ private:
         { "lidar", "point_cloud", &state.lidar.points, DATA_VECTOR3F_ARRAY },
         { "rc", "channels", &state.rc.rc_channels, DATA_FLOAT_ARRAY },
         { "rng", "distances", &state.rng.rng_distances, DATA_FLOAT_ARRAY },
+        { "", "position", &state.position, DATA_VECTOR3F },
     };
 };
 

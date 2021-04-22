@@ -307,7 +307,10 @@ void AirSim::recv_fdm(const sitl_input& input)
     location.lng = state.gps.lon * 1.0e7;
     location.alt = state.gps.alt * 100.0f;
 
-    position = home.get_distance_NED(location);
+    // position = home.get_distance_NED(location);
+    position = state.position;
+    // Convert from meters from origin physics to a lat long alt
+    update_position();
 
     dcm.from_euler(state.pose.roll, state.pose.pitch, state.pose.yaw);
 
