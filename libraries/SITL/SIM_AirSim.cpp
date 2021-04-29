@@ -153,6 +153,7 @@ bool AirSim::parse_sensors(const char *json)
             return false;
         }
 
+        // Skip closing quote, colon, space -> 'key": 2.13...'
         p += strlen(key.key)+3;
         switch (key.type) {
             case DATA_UINT64:
@@ -340,6 +341,9 @@ void AirSim::recv_fdm(const sitl_input& input)
         rangefinder_m[i] = state.rng.rng_distances.data[i];
     }
 
+    last_timestamp = state.timestamp;
+    frame_counter++;
+
 #if 0
 // @LoggerMessage: ASM1
 // @Description: AirSim simulation data
@@ -393,8 +397,6 @@ void AirSim::recv_fdm(const sitl_input& input)
                        state.gps.alt,
                        velocity_ef.z);
 #endif
-
-    last_timestamp = state.timestamp;
 }
 
 /*
@@ -419,10 +421,12 @@ void AirSim::update(const sitl_input& input)
  */
 void AirSim::report_FPS(void)
 {
-    if (frame_counter++ % 1000 == 0) {
+#if 0
+    if (frame_counter % 1000 == 0) {
         if (last_frame_count != 0) {
             printf("FPS avg=%.2f\n", 1.0e6/average_frame_time);
         }
         last_frame_count = state.timestamp;
     }
+#endif
 }
