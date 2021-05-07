@@ -132,8 +132,10 @@ void AirSim::output_servos(const sitl_input& input)
   This parser does not do any syntax checking, and is not at all
   general purpose
 */
-bool AirSim::parse_sensors(const char *json)
+uint16_t AirSim::parse_sensors(const char *json)
 {
+    uint16_t received_bitmask = 0;
+
     // printf("%s\n", json);
     for (uint16_t i=0; i<ARRAY_SIZE(keytable); i++) {
         struct keytable &key = keytable[i];
@@ -142,6 +144,10 @@ bool AirSim::parse_sensors(const char *json)
         const char *p = strstr(json, key.section);
         if (!p) {
             // we don't have this sensor
+            if (key.required) {
+                printf("Failed to find section %s\n", key.section);
+                return false;
+            }
             continue;
         }
         p += strlen(key.section)+1;
@@ -149,9 +155,16 @@ bool AirSim::parse_sensors(const char *json)
         // find key inside section
         p = strstr(p, key.key);
         if (!p) {
-            printf("Failed to find key %s/%s\n", key.section, key.key);
-            return false;
+            if (key.required) {
+                printf("Failed to find key %s/%s\n", key.section, key.key);
+                return false;
+            }
+            continue;
         }
+
+        // Record the keys that are found
+        // received_bitmask |= 1U << i;
+        BIT_SET(received_bitmask, i);
 
         // Skip closing quote, colon, space -> 'key": 2.13...'
         p += strlen(key.key)+3;
@@ -172,7 +185,7 @@ bool AirSim::parse_sensors(const char *json)
                 Vector3f *v = (Vector3f *)key.ptr;
                 if (sscanf(p, "[%f, %f, %f]", &v->x, &v->y, &v->z) != 3) {
                     printf("Failed to parse Vector3f for %s/%s\n", key.section, key.key);
-                    return false;
+                    return received_bitmask;
                 }
                 break;
             }
@@ -182,7 +195,8 @@ bool AirSim::parse_sensors(const char *json)
                 //       x0, y0, z0, x1, y1, z1, ..., xn, yn, zn
                 // example: [23.1,0.677024,1.4784,-8.97607135772705,-8.976069450378418,-8.642673492431641e-07,]
                 if (*p++ != '[') {
-                    return false;
+                    printf("Missing opening bracket for array data in %s/%s\n", key.section, key.key);
+                    return received_bitmask;
                 }
                 uint16_t n = 0;
                 vector3f_array *v = (vector3f_array *)key.ptr;
@@ -190,30 +204,30 @@ bool AirSim::parse_sensors(const char *json)
                     if (n >= v->length) {
                         Vector3f *d = (Vector3f *)realloc(v->data, sizeof(Vector3f)*(n+1));
                         if (d == nullptr) {
-                            return false;
+                            return received_bitmask;
                         }
                         v->data = d;
                         v->length = n+1;
                     }
                     if (sscanf(p, "%f,%f,%f,", &v->data[n].x, &v->data[n].y, &v->data[n].z) != 3) {
                         printf("Failed to parse Vector3f for %s/%s[%u]\n", key.section, key.key, n);
-                        return false;
+                        return received_bitmask;
                     }
                     n++;
                     // Goto 3rd occurence of ,
                     p = strchr(p,',');
                     if (!p) {
-                        return false;
+                        return received_bitmask;
                     }
                     p++;
                     p = strchr(p,',');
                     if (!p) {
-                        return false;
+                        return received_bitmask;
                     }
                     p++;
                     p = strchr(p,',');
                     if (!p) {
-                        return false;
+                        return received_bitmask;
                     }
                     p++;
                     // Reached end of point cloud
@@ -228,7 +242,8 @@ bool AirSim::parse_sensors(const char *json)
             case DATA_FLOAT_ARRAY: {
                 // example: [18.0, 12.694079399108887]
                 if (*p++ != '[') {
-                    return false;
+                    printf("Missing opening bracket for array data in %s/%s\n", key.section, key.key);
+                    return received_bitmask;
                 }
                 uint16_t n = 0;
                 float_array *v = (float_array *)key.ptr;
@@ -236,7 +251,7 @@ bool AirSim::parse_sensors(const char *json)
                     if (n >= v->length) {
                         float *d = (float *)realloc(v->data, sizeof(float)*(n+1));
                         if (d == nullptr) {
-                            return false;
+                            return received_bitmask;
                         }
                         v->data = d;
                         v->length = n+1;
@@ -254,7 +269,7 @@ bool AirSim::parse_sensors(const char *json)
             }
         }
     }
-    return true;
+    return received_bitmask;
 }
 
 /*
@@ -295,7 +310,36 @@ void AirSim::recv_fdm(const sitl_input& input)
         return;
     }
 
-    parse_sensors((const char *)(p1+1));
+    const uint16_t received_bitmask = parse_sensors((const char *)(p1+1));
+
+    if (received_bitmask == 0) {
+        printf("Did not receive all the mandatory fields\n");
+        return;
+    }
+
+    const uint16_t GPS_BITMASK = GPS_LAT | GPS_LON | GPS_ALT;
+    if ((received_bitmask & (POSITION | GPS_BITMASK)) == 0) {
+        printf("Did not receive either of GPS or Position\n");
+        return;
+    }
+
+    if (received_bitmask != last_received_bitmask) {
+        printf("JSON fields received: \n");
+
+        for (uint16_t i=0; i<ARRAY_SIZE(keytable); i++) {
+            if (!BIT_IS_SET(received_bitmask, i))
+                continue;
+
+            struct keytable &key = keytable[i];
+            if (strcmp(key.section, "") == 0)
+               printf("\t%s\n", key.key);
+            else
+                printf("\t%s: %s\n", key.section, key.key);
+        }
+        printf("\n");
+
+        last_received_bitmask = received_bitmask;
+    }
 
     memmove(sensor_buffer, p2, sensor_buffer_len - (p2 - sensor_buffer));
     sensor_buffer_len = sensor_buffer_len - (p2 - sensor_buffer);
@@ -304,16 +348,39 @@ void AirSim::recv_fdm(const sitl_input& input)
     gyro = state.imu.angular_velocity;
     velocity_ef = state.velocity.world_linear_velocity;
 
-    location.lat = state.gps.lat * 1.0e7;
-    location.lng = state.gps.lon * 1.0e7;
-    location.alt = state.gps.alt * 100.0f;
+    if (received_bitmask & GPS_BITMASK) {
+        location.lat = state.gps.lat * 1.0e7;
+        location.lng = state.gps.lon * 1.0e7;
+        location.alt = state.gps.alt * 100.0f;
 
-    // position = home.get_distance_NED(location);
-    position = state.position;
-    // Convert from meters from origin physics to a lat long alt
-    update_position();
+        position = home.get_distance_NED(location);
+    }
+    else {
+        position = state.position;
+        // Convert from meters from origin physics to a lat long alt
+        update_position();
+    }
 
     dcm.from_euler(state.pose.roll, state.pose.pitch, state.pose.yaw);
+
+    if (received_bitmask & LIDAR)
+        scanner.points = state.lidar.points;
+
+    if (received_bitmask & RC_CHANNELS) {
+        // Update RC input, max 12 channels
+        rcin_chan_count = MIN(state.rc.rc_channels.length, 12);
+        for (uint8_t i=0; i < rcin_chan_count; i++) {
+            rcin[i] = state.rc.rc_channels.data[i];
+        }
+    }
+
+    if (received_bitmask & RANGEFINDER) {
+        // Update Rangefinder data, max sensors limit as defined
+        uint8_t rng_sensor_count = MIN(state.rng.rng_distances.length, RANGEFINDER_MAX_INSTANCES);
+        for (uint8_t i=0; i<rng_sensor_count; i++) {
+            rangefinder_m[i] = state.rng.rng_distances.data[i];
+        }
+    }
 
     if (last_timestamp) {
         int deltat = state.timestamp - last_timestamp;
@@ -325,20 +392,6 @@ void AirSim::recv_fdm(const sitl_input& input)
             }
             average_frame_time = average_frame_time * 0.98 + deltat * 0.02;
         }
-    }
-
-    scanner.points = state.lidar.points;
-
-    // Update RC input, max 12 channels
-    rcin_chan_count = MIN(state.rc.rc_channels.length, 12);
-    for (uint8_t i=0; i < rcin_chan_count; i++) {
-        rcin[i] = state.rc.rc_channels.data[i];
-    }
-
-    // Update Rangefinder data, max sensors limit as defined
-    uint8_t rng_sensor_count = MIN(state.rng.rng_distances.length, RANGEFINDER_MAX_INSTANCES);
-    for (uint8_t i=0; i<rng_sensor_count; i++) {
-        rangefinder_m[i] = state.rng.rng_distances.data[i];
     }
 
     last_timestamp = state.timestamp;

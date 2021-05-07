@@ -85,7 +85,7 @@ private:
     void recv_fdm(const sitl_input& input);
     void report_FPS(void);
 
-	bool parse_sensors(const char *json);
+	uint16_t parse_sensors(const char *json);
 
 	// buffer for parsing pose data in JSON format
     uint8_t sensor_buffer[65000];
@@ -133,22 +133,41 @@ private:
         const char *key;
         void *ptr;
         enum data_type type;
+        bool required;
     } keytable[14] = {
-        { "", "timestamp", &state.timestamp, DATA_UINT64 },
-        { "imu", "angular_velocity",    &state.imu.angular_velocity, DATA_VECTOR3F },
-        { "imu", "linear_acceleration", &state.imu.linear_acceleration, DATA_VECTOR3F },
-        { "gps", "lat", &state.gps.lat, DATA_DOUBLE },
-        { "gps", "lon", &state.gps.lon, DATA_DOUBLE },
-        { "gps", "alt", &state.gps.alt, DATA_DOUBLE },
-        { "pose", "roll",  &state.pose.roll, DATA_FLOAT },
-        { "pose", "pitch", &state.pose.pitch, DATA_FLOAT },
-        { "pose", "yaw",   &state.pose.yaw, DATA_FLOAT },
-        { "velocity", "world_linear_velocity", &state.velocity.world_linear_velocity, DATA_VECTOR3F },
-        { "lidar", "point_cloud", &state.lidar.points, DATA_VECTOR3F_ARRAY },
-        { "rc", "channels", &state.rc.rc_channels, DATA_FLOAT_ARRAY },
-        { "rng", "distances", &state.rng.rng_distances, DATA_FLOAT_ARRAY },
-        { "", "position", &state.position, DATA_VECTOR3F },
+        { "", "timestamp", &state.timestamp, DATA_UINT64, true },
+        { "imu", "angular_velocity",    &state.imu.angular_velocity, DATA_VECTOR3F, true },
+        { "imu", "linear_acceleration", &state.imu.linear_acceleration, DATA_VECTOR3F, true },
+        { "gps", "lat", &state.gps.lat, DATA_DOUBLE, false },
+        { "gps", "lon", &state.gps.lon, DATA_DOUBLE, false },
+        { "gps", "alt", &state.gps.alt, DATA_DOUBLE, false },
+        { "pose", "roll",  &state.pose.roll, DATA_FLOAT, true },
+        { "pose", "pitch", &state.pose.pitch, DATA_FLOAT, true },
+        { "pose", "yaw",   &state.pose.yaw, DATA_FLOAT, true },
+        { "velocity", "world_linear_velocity", &state.velocity.world_linear_velocity, DATA_VECTOR3F, true },
+        { "lidar", "point_cloud", &state.lidar.points, DATA_VECTOR3F_ARRAY, false },
+        { "rc", "channels", &state.rc.rc_channels, DATA_FLOAT_ARRAY, false },
+        { "rng", "distances", &state.rng.rng_distances, DATA_FLOAT_ARRAY, false },
+        { "", "position", &state.position, DATA_VECTOR3F, false },
     };
+
+    enum DataKey {
+        TIMESTAMP   = 1U << 0,
+        GYRO        = 1U << 1,
+        ACCEL_BODY  = 1U << 2,
+        GPS_LAT     = 1U << 3,
+        GPS_LON     = 1U << 4,
+        GPS_ALT     = 1U << 5,
+        ATT_ROLL    = 1U << 6,
+        ATT_PITCH   = 1U << 7,
+        ATT_YAW     = 1U << 8,
+        VELOCITY    = 1U << 9,
+        LIDAR       = 1U << 10,
+        RC_CHANNELS = 1U << 11,
+        RANGEFINDER = 1U << 12,
+        POSITION    = 1U << 13,
+    };
+    uint16_t last_received_bitmask;
 };
 
 }
