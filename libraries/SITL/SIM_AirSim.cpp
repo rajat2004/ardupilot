@@ -170,15 +170,15 @@ uint16_t AirSim::parse_sensors(const char *json)
         p += strlen(key.key)+3;
         switch (key.type) {
             case DATA_UINT64:
-                *((uint64_t *)key.ptr) = strtoul(p, nullptr, 10);
+                *((uint64_t *)key.ptr) = strtoull(p, nullptr, 10);
                 break;
 
             case DATA_FLOAT:
-                *((float *)key.ptr) = atof(p);
+                *((float *)key.ptr) = strtod(p, nullptr);
                 break;
 
             case DATA_DOUBLE:
-                *((double *)key.ptr) = atof(p);
+                *((double *)key.ptr) = strtod(p, nullptr);
                 break;
 
             case DATA_VECTOR3F: {
